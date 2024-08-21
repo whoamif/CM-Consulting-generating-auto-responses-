@@ -1,6 +1,8 @@
+import tkinter as tk
+from tkinter import filedialog, messagebox
 import PyPDF2
 import spacy
-import re
+from fpdf import FPDF
 
 # Charger le modèle français de spaCy
 nlp = spacy.load("fr_core_news_sm")
@@ -30,10 +32,11 @@ def clean_text(text):
 def analyze_text(text):
     try:
         doc = nlp(text)
-        for entity in doc.ents:
-            print(f"Entité : {entity.text}, Type : {entity.label_}")
+        entities = [(entity.text, entity.label_) for entity in doc.ents]
+        return entities
     except Exception as e:
         print(f"Erreur lors de l'analyse du texte : {e}")
+        return []
 
 def extract_dates(text):
     try:
@@ -55,47 +58,73 @@ def extract_company_name(text):
         print(f"Erreur lors de l'extraction du nom de l'entreprise : {e}")
         return "Nom de l'Entreprise"
 
-def generate_response(company_name, project_details, your_company_name, phone_number, email):
-    response = (
-        f"Bonjour {company_name},\n\n"
-        f"Nous avons bien reçu votre appel d'offres pour {project_details}. "
-        "Nous serions ravis de collaborer avec vous et de discuter plus en détail des "
-        "exigences et des conditions de ce projet.\n\n"
-        "N'hésitez pas à nous contacter pour toute information complémentaire ou pour convenir d'une réunion.\n\n"
-        f"Cordialement,\n{your_company_name}\n"
-        f"Téléphone : {phone_number}\n"
-        f"Email : {email}"
+def generate_tender_text(company_name, project_details, submission_date, contact_info):
+    tender_text = (
+        f"Appel d'Offres\n\n"
+        f"Objet : {project_details}\n\n"
+        f"Nous avons le plaisir de vous inviter à soumettre une offre pour le projet suivant :\n\n"
+        f"Nom de l'Entreprise : {company_name}\n\n"
+        f"Détails du Projet :\n{project_details}\n\n"
+        f"Date Limite de Soumission : {submission_date}\n\n"
+        f"Informations de Contact :\n{contact_info}\n\n"
+        "Nous vous remercions par avance pour l'intérêt porté à cet appel d'offres. "
+        "Veuillez soumettre votre offre avant la date limite mentionnée.\n\n"
+        "Cordialement,\n"
+        "Nom de Votre Entreprise\n"
+        "Téléphone : 01 23 45 67 89\n"
+        "Email : contact@votreentreprise.com"
     )
-    return response
+    return tender_text
 
-def save_response(response, filename="response.txt"):
+def generate_pdf(tender_text, filename="appel_offre.pdf"):
     try:
-        with open(filename, 'w') as file:
-            file.write(response)
-        print(f"Réponse enregistrée dans {filename}")
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", size=12)
+        pdf.multi_cell(0, 10, tender_text)
+        pdf.output(filename)
+        print(f"PDF généré et enregistré dans {filename}")
     except Exception as e:
-        print(f"Erreur lors de l'enregistrement de la réponse : {e}")
+        print(f"Erreur lors de la génération du PDF : {e}")
+
+def load_pdf():
+    filepath = filedialog.askopenfilename(filetypes=[("PDF files", "*.pdf")])
+    if filepath:
+        extracted_text = extract_text_from_pdf(filepath)
+        if extracted_text:
+            cleaned_text = clean_text(extracted_text)
+            entities = analyze_text(cleaned_text)
+            dates = extract_dates(cleaned_text)
+            company_name = extract_company_name(cleaned_text)
+            
+            # Informations pour le modèle d'appel d'offres
+            project_details = "La mise à jour de votre système ERP"
+            submission_date = dates[0] if dates else "Date non spécifiée"
+            contact_info = "01 23 45 67 89, contact@votreentreprise.com"
+            
+            tender_text = generate_tender_text(
+                company_name,
+                project_details,
+                submission_date,
+                contact_info
+            )
+            
+            generate_pdf(tender_text)
+            messagebox.showinfo("Succès", "PDF d'appel d'offres généré et enregistré avec succès.")
+        else:
+            messagebox.showwarning("Avertissement", "Aucun texte extrait du PDF.")
+    else:
+        messagebox.showwarning("Avertissement", "Aucun fichier sélectionné.")
+
+def create_gui():
+    root = tk.Tk()
+    root.title("Générateur d'Appel d'Offres")
+    root.geometry("400x200")
+
+    upload_button = tk.Button(root, text="Télécharger un PDF", command=load_pdf, padx=20, pady=10)
+    upload_button.pack(pady=20)
+
+    root.mainloop()
 
 if __name__ == "__main__":
-    pdf_path = r'/Users/mac/Desktop/DAO Montée de version SAP ECC6 S4 HANA 28.12.2022 final_CMC.pdf'
-    
-    extracted_text = extract_text_from_pdf(pdf_path)
-    
-    if extracted_text:
-        cleaned_text = clean_text(extracted_text)
-        analyze_text(cleaned_text)
-        
-        dates = extract_dates(cleaned_text)
-        print("Dates trouvées : ", dates)
-        
-        company_name = extract_company_name(cleaned_text)
-        print("Nom de la société : ", company_name)
-        
-        project_details = "la mise à jour de votre système ERP"
-        your_company_name = "Nom de Votre Entreprise"
-        phone_number = "01 23 45 67 89"
-        email = "contact@votreentreprise.com"
-        
-        response = generate_response(company_name, project_details, your_company_name, phone_number, email)
-        
-        save_response(response)
+    create_gui()
